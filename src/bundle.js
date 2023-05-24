@@ -20,9 +20,9 @@ class Bundle {
         // 最后真正要生成的代码的 AST 节点语句，不用生成的 AST 会被省略掉
         this.statements = []
         // 外部模块，当通过路径获取不到的模块就属于外部模块，例如 const fs = require('fs') 中的 fs 模块
-		this.externalModules = []
-		// import * as test from './foo' 需要用到
-		this.internalNamespaceModules = []
+				this.externalModules = []
+				// import * as test from './foo' 需要用到
+				this.internalNamespaceModules = []
     }
 
     build() {
@@ -42,48 +42,49 @@ class Bundle {
     // 例如在入口文件 main.js 中引入了另一个文件 foo.js 中的函数
     // 此时 main.js 就是 importer，而 foo.js 是 importee
     fetchModule(importee, importer) {
-        return new Promise((resolve, reject) => {
-			// 如果有缓存，则直接返回
-			if (this.modules[importee]) {
-				resolve(this.modules[importee])
-				return 
-			}
-
-            let route
-            // 入口文件没有 importer
-            if (!importer) {
-                route = importee
-            } else {
-				// 绝对路径
-				if (path.isAbsolute(importee)) {
-					route = importee
-				} else if (importee[0] == '.') {
-					// 相对路径
-					// 获取 importer 的目录，从而找到 importee 的绝对路径
-					route = path.resolve(path.dirname(importer), importee.replace(/\.js$/, '') + '.js')
+			return new Promise((resolve, reject) => {
+				// 如果有缓存，则直接返回
+				if (this.modules[importee]) {
+					resolve(this.modules[importee])
+					return
 				}
-            }
 
-			if (route) {
-				fs.readFile(route, 'utf-8', (err, code) => {
-					if (err) reject(err)
-					const module = new Module({
-						code,
-						path: route,
-						bundle: this,
+				let route
+				// 入口文件没有 importer
+				if (!importer) {
+						route = importee
+				} else {
+					// 绝对路径
+					if (path.isAbsolute(importee)) {
+						route = importee
+					} else if (importee[0] == '.') {
+						// 相对路径
+						// 获取 importer 的目录，从而找到 importee 的绝对路径
+						route = path.resolve(path.dirname(importer), importee.replace(/\.js$/, '') + '.js')
+					}
+				}
+
+				if (route) {
+					fs.readFile(route, 'utf-8', (err, code) => {
+						if (err) reject(err)
+						// 一个文件对应一个模块
+						const module = new Module({
+							code,
+							path: route,
+							bundle: this,
+						})
+						
+						this.modules[route] = module
+						resolve(module)
 					})
-					
-					this.modules[route] = module
+				} else {
+					// 没有找到路径则是外部模块
+					const module = new ExternalModule(importee)
+					this.externalModules.push(module)
+					this.modules[importee] = module
 					resolve(module)
-				})
-			} else {
-				// 没有找到路径则是外部模块
-				const module = new ExternalModule(importee)
-				this.externalModules.push(module)
-				this.modules[importee] = module
-				resolve(module)
-			}
-        })
+				}
+			})
     }
 
     generate(options = {}) {
